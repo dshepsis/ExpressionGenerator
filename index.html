@@ -26,6 +26,35 @@ body {
   margin-right: 10px;
   display:none;
 }
+
+textarea {
+  vertical-align: top;
+  font-family: monospace;
+}
+
+/*Expanding Div styling:*/
+.expanding {
+  border: 1px solid indigo;
+  padding: .5em;
+  display: table;
+  margin: 15px 0px;
+  background-color: #eae7ee;
+  color: white;
+}
+.expanding p {
+  margin-top: 5px;
+  margin-bottom: 0px;
+}
+.expanding-title {
+  color: blue;
+  font-size: 1.1em;
+}
+.expanding-title::selection {
+  background:transparent;
+}
+.expanding-title:hover {
+  color: purple;
+}
 </style>
 
 <body>
@@ -38,15 +67,60 @@ body {
   <p>
     Complexity (between 1 and 100): <input type="number" id="iterations" min="1" max="100" value="5">
   </p>
+  <div class="expanding">
+    <a class="expanding-title" onclick="toggleDisplay(this.parentElement.querySelector('.expanding-body'));">Advanced</a>
+    <div class="expanding-body" style="display:none;">
+      <p>
+        Frequency of Parentheses:
+        <button type="button" onclick="this.parentNode.querySelector('#parenFreq').value='0';">0</button>
+        <input type="range" id="parenFreq" min="0" max="100" value="30" />
+        <button type="button" onclick="this.parentNode.querySelector('#parenFreq').value='100';">100</button>
+      </p>
+      <p>
+        Variable Data: <textarea id="varData" rows="10" cols="30" onchange="varDataChanged=true;"></textarea>
+      </p>
+    </div>
+  </div>
 
   <button type="button" onclick="genExpr();">Generate</button>
   <pre class="output" id="exprOutput" onclick="copyToClipBoard(this)"></pre>
   <pre class="output" id="exprValue"></pre>
 
 <script>
+  //Toggles the parameter element's style.display property between "none" and
+  //"block"
+  function toggleDisplay(elem) {
+    if (elem.style.display === "none") elem.style.display = "block";
+    else elem.style.display = "none";
+  }
+
+  var varDataChanged = false;
+  var scalars = [];
+  var arrays = [];
+  //Read variable data from textbox:
+  function readVarData () {
+    scalars = [];
+    var dataStringArray = document.getElementById("varData").value.split("\n");
+    for (var i = 0; i < dataStringArray.length; ++i) {
+      var scalarVarData = /^([A-Za-z]+) +([0-9]+)$/.exec(dataStringArray[i].trim());
+      scalars.push({
+        name: scalarVarData[1],
+        value: Number(scalarVarData[2])
+      });
+    }
+  }
+  //Get the value corresponding to a given scalar name:
+  function getScalar(scalarName) {
+    for (var i = 0; i < scalars.length; ++i) {
+      if (scalars[i].name === scalarName) return scalars[i].value;
+    }
+    //If we never read such a variable, return NaN
+    return NaN;
+  }
+
   //Returns a random integer between min and max (inclusive)
   function randInt (min, max) {
-    return Math.floor((max-min)*Math.random()+min);
+    return Math.floor((max+1-min)*Math.random()+min);
   }
 
   //Replaces the substring matched by execMatch, which is assumed to be the
@@ -62,6 +136,12 @@ body {
 
   //Generates a string representing a randomly generated mathematical expression
   function genExpr() {
+    //If there has been any change to the variable data field under "Advanced",
+    //re-read the field to load it again.
+    if (varDataChanged) {
+      readVarData();
+      varDataChanged = false;
+    }
     var expr = "" + randInt(1,99);
     //console.log(expr);
     var operandRegEx;// = /[0-9]*/g;
@@ -71,28 +151,42 @@ body {
     for (var i = 1, numOperands = 1; i <= numIterations; ++i) {
       //Find the nth operand in the expression, where n is random:
       randOption = randInt(1, numOperands);
-      operandRegEx = /[0-9]+/g;
+      operandRegEx = /[A-Za-z]+|[0-9]+/g;
       for (var operandIndex = 0; operandIndex < randOption ; ++operandIndex) {
         randOperand = operandRegEx.exec(expr);
       }
-      //Choose random replacement value:
+
+      //Choose random new operand:
+      var newRandOperand;
+      randomOption = Math.random() * 100;
+      if (scalars.length > 0 && randomOption < 50) { //Ocasionally choose variable names
+        var randIndex = randInt(0,scalars.length-1);
+        newRandOperand = scalars[randIndex].name;
+      }
+      else {
+        newRandOperand = randInt(1,99);
+      }
+
+      //Choose random replacement pattern:
       randomOption = Math.random() * 100;
       var replacement;
-      if (randomOption < 20) replacement = "$& + " + randInt(1,99);
-      else if (randomOption < 30) replacement = "$& - " + randInt(1,99);
-      else if (randomOption < 40) replacement = randInt(1,99) + " - $&";
-      else if (randomOption < 60) replacement = "$& * " + randInt(1,99);
-      else if (randomOption < 70) replacement = "$& / " + randInt(1,99);
-      else if (randomOption < 80) replacement = randInt(1,99) + " / $&";
-      else { //Identity transform:
+      if (randomOption < 20) replacement = "$& + " + newRandOperand;
+      else if (randomOption < 30) replacement = "$& - " + newRandOperand;
+      else if (randomOption < 40) replacement = newRandOperand + " - $&";
+      else if (randomOption < 60) replacement = "$& * " + newRandOperand;
+      else if (randomOption < 70) replacement = "$& / " + newRandOperand;
+      else if (randomOption < 80) replacement = newRandOperand + " / $&";
+      else { //Identity transformation:
         replacement = "$&";
-        --numOperands;
+        --numOperands; //This transformation doesn't add an operand to the
+        //expression
       }
+      ++numOperands; //All other transformations DO add an operand
       //Randomly add parentheses:
       randomOption = Math.random() * 100;
-      if (randomOption < 20) replacement = "(" + replacement + ")";
+      parenFreq = Number(document.getElementById("parenFreq").value);
+      if (randomOption < parenFreq) replacement = "(" + replacement + ")";
 
-      ++numOperands;
       //console.log(randOperand[0] + " --> " + replacement);
       expr = replaceThisMatch(randOperand, replacement);
     }
@@ -100,6 +194,8 @@ body {
     outputBox.innerHTML = expr;
     outputBox.style.display = "table";
     outputBox = document.getElementById("exprValue");
+    //Replace variables with their corresponding values before evaluating:
+    expr = expr.replace(/[A-Za-z]/g, getScalar);
     outputBox.innerHTML = ("= " + eval(expr));
     outputBox.style.display = "table";
   }
