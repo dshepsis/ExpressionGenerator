@@ -8,9 +8,111 @@
   <meta name="description" content="A script for generating expressions">
   <meta name="author" content="Daniel Shepsis">
 </head>
+<style>
+body {
+  background-color: #eee;
+  margin-left:10%;
+  margin-top: 5%;
+}
+* {
+  font-family: sans-serif;
+  font-size: 20px;
+  color: #333;
+}
+.output {
+  border: 1px dashed #555;
+  background-color: #ddd;
+  padding: .5em;
+  margin-right: 10px;
+  display:none;
+}
+</style>
 
 <body>
-  <p>Hello world!</p>
-  <button type="button" onclick="window.alert('Sup');">Gimme a second...</button>
+  <p>
+    This is a simple random expression generator for testing expression evaluators!
+  </p>
+  <p>
+    Just choose a complexity (roughly determines how long the expression is) and hit "Generate".
+  </p>
+  <p>
+    Complexity (between 1 and 100): <input type="number" id="iterations" min="1" max="100" value="5">
+  </p>
+
+  <button type="button" onclick="genExpr();">Generate</button>
+  <pre class="output" id="exprOutput" onclick="copyToClipBoard(this)"></pre>
+  <pre class="output" id="exprValue"></pre>
+
+<script>
+  //Returns a random integer between min and max (inclusive)
+  function randInt (min, max) {
+    return Math.floor((max-min)*Math.random()+min);
+  }
+
+  //Replaces the substring matched by execMatch, which is assumed to be the
+  //return value of a call of exec(), with replacement (which is a String
+  //formatted in the same way as the equivalent parameter for String.replace())
+  function replaceThisMatch (execMatch, replacement) {
+    var origString = execMatch.input;
+    var firstPart = origString.substring(0,execMatch.index);
+    var matchedPart = execMatch[0].replace(execMatch[0], replacement);
+    var endPart = origString.substring(execMatch.index + execMatch[0].length);
+    return firstPart + matchedPart + endPart;
+  }
+
+  //Generates a string representing a randomly generated mathematical expression
+  function genExpr() {
+    var expr = "" + randInt(1,99);
+    //console.log(expr);
+    var operandRegEx;// = /[0-9]*/g;
+    var randomOption;
+    var randOperand;
+    numIterations = Number(document.getElementById("iterations").value);
+    for (var i = 1, numOperands = 1; i <= numIterations; ++i) {
+      //Find the nth operand in the expression, where n is random:
+      randOption = randInt(1, numOperands);
+      operandRegEx = /[0-9]+/g;
+      for (var operandIndex = 0; operandIndex < randOption ; ++operandIndex) {
+        randOperand = operandRegEx.exec(expr);
+      }
+      //Choose random replacement value:
+      randomOption = Math.random() * 100;
+      var replacement;
+      if (randomOption < 20) replacement = "$& + " + randInt(1,99);
+      else if (randomOption < 30) replacement = "$& - " + randInt(1,99);
+      else if (randomOption < 40) replacement = randInt(1,99) + " - $&";
+      else if (randomOption < 60) replacement = "$& * " + randInt(1,99);
+      else if (randomOption < 70) replacement = "$& / " + randInt(1,99);
+      else if (randomOption < 80) replacement = randInt(1,99) + " / $&";
+      else { //Identity transform:
+        replacement = "$&";
+        --numOperands;
+      }
+      //Randomly add parentheses:
+      randomOption = Math.random() * 100;
+      if (randomOption < 20) replacement = "(" + replacement + ")";
+
+      ++numOperands;
+      //console.log(randOperand[0] + " --> " + replacement);
+      expr = replaceThisMatch(randOperand, replacement);
+    }
+    var outputBox = document.getElementById("exprOutput");
+    outputBox.innerHTML = expr;
+    outputBox.style.display = "table";
+    outputBox = document.getElementById("exprValue");
+    outputBox.innerHTML = ("= " + eval(expr));
+    outputBox.style.display = "table";
+  }
+
+  //Copy contents of output box
+  function copyToClipBoard(elem){
+    //var elem = document.getElementById("utput");
+    var range = document.createRange();
+    range.selectNodeContents(elem);
+    var selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+  }
+</script>
 </body>
 </html>
