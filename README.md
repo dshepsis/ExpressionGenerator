@@ -12,6 +12,7 @@ Each transformation involves replacing the given operand with another value, usu
 
 The list of transforms is as follows, with "op" representing the operand to be replaced, and "ri" representing a random integer in between 1 and 99:
 
+<pre>
 * op -> op + ri
 * op -> op - ri
 * op -> ri - op
@@ -19,5 +20,6 @@ The list of transforms is as follows, with "op" representing the operand to be r
 * op -> op / ri
 * op -> ri / op
 * op -> op
+</pre>
 
 Note that the last transformation doesn't change the expression. This is an "identity" transformation, and exists as a default if no other transformations are chosen. This also means that the length of an expression can vary significantly, even if the complexity remains constant.
