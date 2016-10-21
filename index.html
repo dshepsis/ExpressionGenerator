@@ -65,6 +65,9 @@ textarea {
     Just choose a complexity (roughly determines how long the expression is) and hit "Generate".
   </p>
   <p>
+    Note: just click on the output expression to highlight it. Then, press ctrl+c to copy it.
+  </p>
+  <p>
     Complexity (between 1 and 100): <input type="number" id="iterations" min="1" max="100" value="5">
   </p>
   <div class="expanding">
@@ -77,7 +80,13 @@ textarea {
         <button type="button" onclick="this.parentNode.querySelector('#parenFreq').value='100';">100</button>
       </p>
       <p>
-        Variable Data: <textarea id="varData" rows="10" cols="30" onchange="varDataChanged=true;"></textarea>
+        Variable Data: <textarea id="varData" rows="10" cols="50" onchange="varDataChanged=true;" placeholder="myScalar 13 //Scalar variable
+myArray 5 (1,17) (3,19) //Array variable
+//arrayName length (index, value)
+
+//Note that array variables cannot be
+//evaluated, so comment them out to
+//check the answer."></textarea>
       </p>
     </div>
   </div>
@@ -94,20 +103,57 @@ textarea {
     else elem.style.display = "none";
   }
 
+  var error_message = "";
   var varDataChanged = false;
   var scalars = [];
   var arrays = [];
   //Read variable data from textbox:
   function readVarData () {
+    console.log("Reading variables...");
     scalars = [];
-    var dataStringArray = document.getElementById("varData").value.split("\n");
+    arrays = [];
+    var scalarRegex = /^([A-Za-z]+) +([0-9]+)$/ //For matching scalar vars, e.g.
+    //myVar 13
+    var arrayRegex = /^([A-za-z]+) +([0-9]+) +(\([0-9,\(\) ]+\))$/ //e.g.
+    //myArray 7 (1,99) (2, 97)
+    var dataStringArray = document.getElementById("varData").value.replace(/\/\/.*/g, "").split("\n");
     for (var i = 0; i < dataStringArray.length; ++i) {
-      var scalarVarData = /^([A-Za-z]+) +([0-9]+)$/.exec(dataStringArray[i].trim());
-      scalars.push({
-        name: scalarVarData[1],
-        value: Number(scalarVarData[2])
-      });
+      var varDataMatch = scalarRegex.exec(dataStringArray[i].trim());
+      if (varDataMatch != null) {
+        scalars.push({
+          name: varDataMatch[1],
+          value: Number(varDataMatch[2])
+        });
+        continue; //Check next line
+      }
+      varDataMatch = arrayRegex.exec(dataStringArray[i].trim());
+      if (varDataMatch != null) { //If we found an array-type match, read it:
+        var arrayValues = new Array(Number(varDataMatch[2])).fill(0); //Making an array
+        //of the size of the specified format
+
+        //Look for (index,value) pairs and add them to the array:
+        var arrayValueRegex = /\(([0-9]+) *, *([0-9]+)\)/g //For matching the (index,
+        //value) pairs of an array definition
+        var arrayValMatch = arrayValueRegex.exec(varDataMatch[3]);
+        if (arrayValMatch == null) { //If we don't find a match, something's wrong
+          error_message += "\nArray variable on line " + i +" is mis-formatted!";
+          continue;
+        }
+        while (arrayValMatch != null){ //We should be guaranteed a match here"
+          arrayValues[arrayValMatch[1]] = Number(arrayValMatch[2]);
+          var arrayValMatch = arrayValueRegex.exec(varDataMatch[3]);
+
+        }
+        arrays.push({
+          name: varDataMatch[1],
+          values: arrayValues
+        });
+        continue;
+      }
+      //If we didn't find any match on this line, something went wrong...
+      error_message += "\nVariable data on line " + i + " is mis-formatted!";
     }
+    console.log("Done reading variables!");
   }
   //Get the value corresponding to a given scalar name:
   function getScalar(scalarName) {
@@ -117,10 +163,57 @@ textarea {
     //If we never read such a variable, return NaN
     return NaN;
   }
+  //Get the actual array corresponding to a give array name.
+  function getArray(arrayName) {
+    for (var i = 0; i < arrays.length; ++i) {
+      if (arrays[i].name === arraysName) return arrays[i].values;
+    }
+    //If we never read such a variable, return NaN
+    return NaN;
+  }
 
   //Returns a random integer between min and max (inclusive)
   function randInt (min, max) {
     return Math.floor((max+1-min)*Math.random()+min);
+  }
+
+  //Returns the string representing a random operand for use in expressions.
+  //Chooses from constants between 1 and 99, scalars (if there are any loaded)
+  //and arrays variables (also if any are loaded). The 3 parameters represent
+  //the proportions of likelihood for each possibility to be generated.
+  //Some notes:
+  // * If the 3 parameters sum to 0, the function will return "".
+  // * If scalars or arrays is empty (none loaded), then their respective
+  //   frquencies will be treated as 0 regardless of the parameter
+  // * The probability of receiving any option is equal to the corresponding
+  //   frequency parameter of that option, divided by the sume of all 3
+  //   frequency parameters (taking into account the above rules first).
+  //   For example, getRandOperand(1,1) gives a 50% chance of constants, 50%
+  //   chance of scalars.
+  // * Arrays will automatically be given a random index, which is generated
+  // * by a recursive call getRandOperand(freqConst, freqScalar, 0), to avoid
+  // * infinite loops.
+  function genRandOperand (freqConst=65, freqScalar=20, freqArray=15) {
+    //If either variable array is empty, don't try to generate variable operands
+    //of that type:
+    if (scalars.length === 0) freqScalar = 0;
+    if (arrays.length === 0) freqArray = 0;
+
+    var totalFreq = Number(freqConst) + Number(freqScalar) + Number(freqArray);
+    if (isNaN(totalFreq) || totalFreq === 0) return ''; //Error handling
+
+    //Make a random choice:
+    var randOption = totalFreq * Math.random();
+    if (randOption < freqConst) {
+      return String(randInt(1,99));
+    }
+    if (randOption < freqScalar + freqConst) {
+      return scalars[randInt(0,scalars.length-1)].name;
+    }
+    //If neither of the above options were selected, then we must have rolled
+    //to generate an array:
+    var randArray = arrays[randInt(0,scalars.length-1)];
+    return (randArray.name + "[" + genRandOperand(freqConst, freqScalar, 0) + "]");
   }
 
   //Replaces the substring matched by execMatch, which is assumed to be the
@@ -142,32 +235,44 @@ textarea {
       readVarData();
       varDataChanged = false;
     }
-    var expr = "" + randInt(1,99);
-    //console.log(expr);
-    var operandRegEx;// = /[0-9]*/g;
+
+    var expr = "" + genRandOperand();
+    var operandRegEx;
     var randomOption;
-    var randOperand;
+    var randomOperandMatch;
     numIterations = Number(document.getElementById("iterations").value);
+
+    //Loop for randomly transforming the expression:
     for (var i = 1, numOperands = 1; i <= numIterations; ++i) {
-      //Find the nth operand in the expression, where n is random:
+
+      //**STEP 1 - Select a random operand in the expression:
       randOption = randInt(1, numOperands);
       operandRegEx = /[A-Za-z]+|[0-9]+/g;
       for (var operandIndex = 0; operandIndex < randOption ; ++operandIndex) {
-        randOperand = operandRegEx.exec(expr);
+        randomOperandMatch = operandRegEx.exec(expr);
+      }
+      //Check if the selected operand is an array variable. if so, we need to
+      //expand the selection to include the entire array. Since the regex has a
+      //global tag, we can access it's lastIndex property to find the character
+      //after the last operand match. If that character is a square bracket [
+      //then we MUST have matched an array variable.
+      var startArrayMatchIndex = operandRegEx.lastIndex;
+      if (expr.charAt(startArrayMatchIndex) === '[') {
+        //Skip the opening /bracket for the variable:
+        var endArrayMatchIndex = startArrayMatchIndex + 1;
+        // Loop to find the matching closing square bracket:
+        for (var openBracketCounter = 1; openBracketCounter > 0; ++endArrayMatchIndex) {
+          if (expr.charAt(endArrayMatchIndex) === '[') ++openBracketCounter;
+          else if (expr.charAt(endArrayMatchIndex) === ']') --openBracketCounter;
+        }
+        //Now we found the closing bracket, so we can expand randomOperandMatch:
+        randomOperandMatch[0] += expr.substring (startArrayMatchIndex, endArrayMatchIndex);
       }
 
-      //Choose random new operand:
-      var newRandOperand;
-      randomOption = Math.random() * 100;
-      if (scalars.length > 0 && randomOption < 50) { //Ocasionally choose variable names
-        var randIndex = randInt(0,scalars.length-1);
-        newRandOperand = scalars[randIndex].name;
-      }
-      else {
-        newRandOperand = randInt(1,99);
-      }
+      //**STEP 2 - Choose random new operand:
+      var newRandOperand = genRandOperand();
 
-      //Choose random replacement pattern:
+      //**STEP 3 - Choose random replacement pattern:
       randomOption = Math.random() * 100;
       var replacement;
       if (randomOption < 20) replacement = "$& + " + newRandOperand;
@@ -187,16 +292,23 @@ textarea {
       parenFreq = Number(document.getElementById("parenFreq").value);
       if (randomOption < parenFreq) replacement = "(" + replacement + ")";
 
-      //console.log(randOperand[0] + " --> " + replacement);
-      expr = replaceThisMatch(randOperand, replacement);
+      //**STEP 4 - Apply replacement pattern to the expreesion, then loop:
+      expr = replaceThisMatch(randomOperandMatch, replacement);
     }
     var outputBox = document.getElementById("exprOutput");
     outputBox.innerHTML = expr;
     outputBox.style.display = "table";
     outputBox = document.getElementById("exprValue");
     //Replace variables with their corresponding values before evaluating:
-    expr = expr.replace(/[A-Za-z]/g, getScalar);
-    outputBox.innerHTML = ("= " + eval(expr));
+    if (arrays.length === 0) {
+      expr = expr.replace(/[A-Za-z]+/g, getScalar);
+      outputBox.innerHTML = "= " + eval(expr);
+      outputBox.style.color = "";
+    }
+    else {
+      outputBox.innerHTML = "(Can't evaluate with arrays.)";
+      outputBox.style.color = "Red";
+    }
     outputBox.style.display = "table";
   }
 
