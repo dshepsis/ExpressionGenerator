@@ -212,7 +212,7 @@ myArray 5 (1,17) (3,19) //Array variable
     }
     //If neither of the above options were selected, then we must have rolled
     //to generate an array:
-    var randArray = arrays[randInt(0,scalars.length-1)];
+    var randArray = arrays[randInt(0,arrays.length-1)];
     return (randArray.name + "[" + genRandOperand(freqConst, freqScalar, 0) + "]");
   }
 
