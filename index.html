@@ -310,6 +310,35 @@ myArray 5 (1,17) (3,19) //Array variable
       //**STEP 4 - Apply replacement pattern to the expreesion, then loop:
       expr = replaceThisMatch(randomOperandMatch, replacement);
     }
+
+    /* Bugfix 10/7/2018: Ensure array indices are within the range of defined
+     * indices for the given variable: */
+    var arrayVarRegex = /([A-Za-z]+)\[([ ()A-Za-z0-9+*/-]+)\]/g;
+    while (true) {
+      var arrayMatch = arrayVarRegex.exec(expr);
+      if (arrayMatch === null) break;
+      var arrayName = arrayMatch[1];
+      var arrayIndexStr = arrayMatch[2];
+      var arrayIndexVal = eval(arrayIndexStr.replace(/[A-Za-z]+/g, getScalar));
+      var arrayLen;
+      for (var arrayObj of arrays) {
+        if (arrayObj.name === arrayName) {
+          arrayLen = arrayObj.values.length;
+          break;
+        }
+      }
+      if (arrayIndexVal >= 0 && arrayIndexVal < arrayLen) {
+        continue; //Don't adjust array indices that are already in range.
+      }
+      var adjustment = Math.ceil(randInt(0, arrayLen - 1) - arrayIndexVal);
+      expr = (
+        expr.substring(0, arrayMatch.index) + arrayName +
+        '[' + arrayIndexStr +
+        ' ' + ((adjustment > 0) ? '+' : '-') + ' ' + Math.abs(adjustment) +
+        ']' + expr.substr(arrayMatch.index + arrayMatch[0].length)
+      );
+    }
+
     var outputBox = document.getElementById("exprOutput");
     outputBox.innerHTML = expr;
     outputBox.style.display = "table";
@@ -329,7 +358,6 @@ myArray 5 (1,17) (3,19) //Array variable
 
   //Copy contents of output box
   function copyToClipBoard(elem){
-    //var elem = document.getElementById("utput");
     var range = document.createRange();
     range.selectNodeContents(elem);
     var selection = window.getSelection();
